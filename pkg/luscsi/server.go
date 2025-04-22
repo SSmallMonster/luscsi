@@ -1,6 +1,7 @@
 package luscsi
 
 import (
+	"k8s.io/klog/v2"
 	"net"
 	"os"
 	"sync"

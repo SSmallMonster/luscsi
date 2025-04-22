@@ -1,34 +1,69 @@
 package luscsi
 
 import (
-	csicommon "sigs.k8s.io/azurelustre-csi-driver/pkg/csi-common"
+	"github.com/container-storage-interface/spec/lib/go/csi"
+	mount "k8s.io/mount-utils"
+	"runtime"
+)
+
+var (
+	controllerServiceCapabilities = []csi.ControllerServiceCapability_RPC_Type{
+		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
+		csi.ControllerServiceCapability_RPC_SINGLE_NODE_MULTI_WRITER,
+	}
+
+	volumeCapabilities = []csi.VolumeCapability_AccessMode_Mode{
+		csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+		csi.VolumeCapability_AccessMode_SINGLE_NODE_READER_ONLY,
+		csi.VolumeCapability_AccessMode_SINGLE_NODE_SINGLE_WRITER,
+		csi.VolumeCapability_AccessMode_SINGLE_NODE_MULTI_WRITER,
+		csi.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY,
+		csi.VolumeCapability_AccessMode_MULTI_NODE_SINGLE_WRITER,
+		csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+	}
+
+	nodeServiceCapabilities = []csi.NodeServiceCapability_RPC_Type{
+		csi.NodeServiceCapability_RPC_GET_VOLUME_STATS,
+		csi.NodeServiceCapability_RPC_SINGLE_NODE_MULTI_WRITER,
+	}
+)
+
+const (
+	StorageParamMgsAddress = "mgsAddress"
+	StorageParamFsName     = "fsName"
+	StorageParamSubdir     = "subdir"
 )
 
 // DriverOptions defines driver parameters specified in driver deployment
 type DriverOptions struct {
 	NodeID                     string
 	DriverName                 string
+	MountPermissions           uint64
 	EnableAzureLustreMockMount bool
 	WorkingMountDir            string
+	DriverVersion              string
 }
 
 // Driver implements all interfaces of CSI drivers
 type Driver struct {
-	csicommon.CSIDriver
-	csicommon.DefaultIdentityServer
-	csicommon.DefaultControllerServer
-	csicommon.DefaultNodeServer
+	DriverOptions
+	mounter mount.Interface
+	csi.UnimplementedControllerServer
+	csi.UnimplementedIdentityServer
+	csi.UnimplementedNodeServer
 }
 
 func NewDriver(options *DriverOptions) *Driver {
-	d := Driver{}
-	d.Name = options.DriverName
-	d.Version = driverVersion
-	d.NodeID = options.NodeID
+	d := Driver{
+		DriverOptions: *options,
+	}
 
-	d.DefaultControllerServer.Driver = &d.CSIDriver
-	d.DefaultIdentityServer.Driver = &d.CSIDriver
-	d.DefaultNodeServer.Driver = &d.CSIDriver
+	mounter := mount.New("")
+	if runtime.GOOS == "linux" {
+		// MounterForceUnmounter is only implemented on Linux now
+		mounter = mounter.(mount.MounterForceUnmounter)
+	}
 
+	d.mounter = mounter
 	return &d
 }

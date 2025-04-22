@@ -1,12 +1,37 @@
 # github.com/container-storage-interface/spec v1.11.0
 ## explicit; go 1.18
 github.com/container-storage-interface/spec/lib/go/csi
+# github.com/coreos/go-systemd/v22 v22.5.0
+## explicit; go 1.12
+github.com/coreos/go-systemd/v22/dbus
 # github.com/go-logr/logr v1.4.2
 ## explicit; go 1.18
 github.com/go-logr/logr
+# github.com/godbus/dbus/v5 v5.1.0
+## explicit; go 1.12
+github.com/godbus/dbus/v5
+# github.com/kr/text v0.2.0
+## explicit
 # github.com/kubernetes-csi/csi-lib-utils v0.21.0
 ## explicit; go 1.23.1
 github.com/kubernetes-csi/csi-lib-utils/protosanitizer
+# github.com/moby/sys/mountinfo v0.7.2
+## explicit; go 1.17
+github.com/moby/sys/mountinfo
+# github.com/opencontainers/runc v1.1.15
+## explicit; go 1.18
+github.com/opencontainers/runc/libcontainer/configs
+github.com/opencontainers/runc/libcontainer/devices
+github.com/opencontainers/runc/libcontainer/user
+github.com/opencontainers/runc/libcontainer/userns
+# github.com/opencontainers/runtime-spec v1.2.0
+## explicit
+github.com/opencontainers/runtime-spec/specs-go
+# github.com/rogpeppe/go-internal v1.13.1
+## explicit; go 1.22
+# github.com/sirupsen/logrus v1.9.3
+## explicit; go 1.13
+github.com/sirupsen/logrus
 # golang.org/x/net v0.37.0
 ## explicit; go 1.23.0
 golang.org/x/net/context
@@ -138,9 +163,14 @@ k8s.io/klog/v2/internal/dbg
 k8s.io/klog/v2/internal/serialize
 k8s.io/klog/v2/internal/severity
 k8s.io/klog/v2/internal/sloghandler
-# sigs.k8s.io/azurelustre-csi-driver v0.1.18
-## explicit; go 1.23.6
-sigs.k8s.io/azurelustre-csi-driver/pkg/csi-common
+# k8s.io/mount-utils v0.31.6
+## explicit; go 1.22.0
+k8s.io/mount-utils
+# k8s.io/utils v0.0.0-20241210054802-24370beab758
+## explicit; go 1.18
+k8s.io/utils/exec
+k8s.io/utils/io
+k8s.io/utils/keymutex
 # sigs.k8s.io/yaml v1.4.0
 ## explicit; go 1.12
 sigs.k8s.io/yaml

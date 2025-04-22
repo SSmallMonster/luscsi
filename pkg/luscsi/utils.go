@@ -7,6 +7,7 @@ import (
 	"google.golang.org/grpc"
 	"k8s.io/klog/v2"
 	"strings"
+	"time"
 )
 
 func ParseEndpoint(ep string) (string, string, error) {
@@ -40,4 +41,30 @@ func getLogLevel(method string) int32 {
 		return 8
 	}
 	return 2
+}
+
+// ExecFunc returns a exec function's output and error
+type ExecFunc func() (err error)
+
+// TimeoutFunc returns output and error if an ExecFunc timeout
+type TimeoutFunc func() (err error)
+
+func WaitUntilTimeout(timeout time.Duration, execFunc ExecFunc, timeoutFunc TimeoutFunc) error {
+	// Create a channel to receive the result of the exec function
+	done := make(chan bool)
+	var err error
+
+	// Start the exec function in a goroutine
+	go func() {
+		err = execFunc()
+		done <- true
+	}()
+
+	// Wait for the function to complete or time out
+	select {
+	case <-done:
+		return err
+	case <-time.After(timeout):
+		return timeoutFunc()
+	}
 }
