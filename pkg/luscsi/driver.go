@@ -28,6 +28,10 @@ var (
 	}
 )
 
+var (
+	DefaultDriverName = "luscsi.luskits.io"
+)
+
 const (
 	StorageParamMgsAddress = "mgsAddress"
 	StorageParamFsName     = "fsName"
@@ -37,6 +41,7 @@ const (
 // DriverOptions defines driver parameters specified in driver deployment
 type DriverOptions struct {
 	NodeID                     string
+	Endpoint                   string
 	DriverName                 string
 	MountPermissions           uint64
 	EnableAzureLustreMockMount bool
@@ -47,10 +52,25 @@ type DriverOptions struct {
 // Driver implements all interfaces of CSI drivers
 type Driver struct {
 	DriverOptions
+	cscap   []*csi.ControllerServiceCapability
+	nscap   []*csi.NodeServiceCapability
 	mounter mount.Interface
-	csi.UnimplementedControllerServer
-	csi.UnimplementedIdentityServer
-	csi.UnimplementedNodeServer
+}
+
+func (n *Driver) AddControllerServiceCapabilities(cl []csi.ControllerServiceCapability_RPC_Type) {
+	var csc []*csi.ControllerServiceCapability
+	for _, c := range cl {
+		csc = append(csc, NewControllerServiceCapability(c))
+	}
+	n.cscap = csc
+}
+
+func (n *Driver) AddNodeServiceCapabilities(nl []csi.NodeServiceCapability_RPC_Type) {
+	var nsc []*csi.NodeServiceCapability
+	for _, n := range nl {
+		nsc = append(nsc, NewNodeServiceCapability(n))
+	}
+	n.nscap = nsc
 }
 
 func NewDriver(options *DriverOptions) *Driver {
@@ -66,4 +86,10 @@ func NewDriver(options *DriverOptions) *Driver {
 
 	d.mounter = mounter
 	return &d
+}
+
+func (d *Driver) Run(testMode bool) {
+	s := NewNonBlockingGRPCServer()
+	s.Start(d.Endpoint, NewIdentifyServer(*d), NewControllerServer(*d), NewNodeServer(*d), testMode)
+	s.Wait()
 }

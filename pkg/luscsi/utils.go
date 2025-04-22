@@ -2,6 +2,7 @@ package luscsi
 
 import (
 	"fmt"
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -66,5 +67,25 @@ func WaitUntilTimeout(timeout time.Duration, execFunc ExecFunc, timeoutFunc Time
 		return err
 	case <-time.After(timeout):
 		return timeoutFunc()
+	}
+}
+
+func NewControllerServiceCapability(cap csi.ControllerServiceCapability_RPC_Type) *csi.ControllerServiceCapability {
+	return &csi.ControllerServiceCapability{
+		Type: &csi.ControllerServiceCapability_Rpc{
+			Rpc: &csi.ControllerServiceCapability_RPC{
+				Type: cap,
+			},
+		},
+	}
+}
+
+func NewNodeServiceCapability(cap csi.NodeServiceCapability_RPC_Type) *csi.NodeServiceCapability {
+	return &csi.NodeServiceCapability{
+		Type: &csi.NodeServiceCapability_Rpc{
+			Rpc: &csi.NodeServiceCapability_RPC{
+				Type: cap,
+			},
+		},
 	}
 }

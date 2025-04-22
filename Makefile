@@ -8,7 +8,7 @@ IMAGE_VERSION ?= 99.9-dev
 IMAGE_TAG ?= $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERSION)
 IMAGE_TAG_LATEST = $(REGISTRY)/$(IMAGE_NAME):latest
 BUILD_DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-LDFLAGS ?= "-X ${PKG}/pkg/csi.driverVersion=${IMAGE_VERSION} -X ${PKG}/pkg/csi.gitCommit=${GIT_COMMIT} -X ${PKG}/pkg/csi.buildDate=${BUILD_DATE} -s -w -extldflags '-static'"
+LDFLAGS ?= "-X ${PKG}/pkg/csi.driverVersion=${IMAGE_VERSION} -X ${PKG}/pkg/csi.gitCommit=${GIT_COMMIT} -X ${PKG}/pkg/csi.buildDate=${BUILD_DATE} -extldflags '-static'"
 GO111MODULE = on
 GOPATH ?= $(shell go env GOPATH)
 GOBIN ?= $(GOPATH)/bin
@@ -20,6 +20,8 @@ export GOPATH GOBIN GO111MODULE DOCKER_CLI_EXPERIMENTAL
 ARCH ?= amd64
 # Output type of docker buildx build
 OUTPUT_TYPE ?= registry
+
+DEBUG ?= true
 
 ALL_ARCH.linux = amd64 #arm64
 ALL_OS_ARCH = $(foreach arch, ${ALL_ARCH.linux}, linux-$(arch))
@@ -34,7 +36,11 @@ endif
 
 .PHONY: luscsi
 luscsi:
-	CGO_ENABLED=0 GOOS=linux GOARCH=$(ARCH) go build -a -ldflags ${LDFLAGS} -mod vendor -o _output/luscsi ./cmd/luscsi.go
+ifeq ($(DEBUG), true)
+	CGO_ENABLED=0 GOOS=linux GOARCH=$(ARCH) go build -gcflags "-N -l" -a -ldflags ${LDFLAGS} -mod vendor -o _output/luscsi ./cmd/luscsi.go
+else
+	CGO_ENABLED=0 GOOS=linux GOARCH=$(ARCH) go build -s -w -a -ldflags ${LDFLAGS} -mod vendor -o _output/luscsi ./cmd/luscsi.go
+endif
 
 .PHONY: container-linux
 container-linux:

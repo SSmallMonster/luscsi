@@ -9,16 +9,30 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/mount-utils"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
 )
 
-func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
+type ControllerServer struct {
+	Driver
+	csi.ControllerServer
+}
+
+func NewControllerServer(driver Driver) *ControllerServer {
+	return &ControllerServer{
+		Driver: driver,
+	}
+}
+
+func (d *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
+
 	klog.V(2).Infof("CreateVolume called, volumeName: %s", req.GetName())
 
 	if err := checkVolumeRequest(req); err != nil {
-		return nil, err
+		klog.V(2).ErrorS(err, "failed to check request")
+		return nil, status.Errorf(codes.InvalidArgument, err.Error())
 	}
 
 	if err := checkParameters(req.GetParameters()); err != nil {
@@ -30,9 +44,9 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 	// todo: check lctl version
 
 	volName := req.GetName()
-	fsName := req.GetParameters()["fsName"]
-	subdir := req.GetParameters()["subdir"]
-	mgsAddress := req.GetParameters()["mgsAddress"]
+	fsName := req.GetParameters()[StorageParamFsName]
+	subdir := req.GetParameters()[StorageParamSubdir]
+	mgsAddress := req.GetParameters()[StorageParamMgsAddress]
 
 	if err := d.internalMount(ctx, volName, mgsAddress, fsName, subdir); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to mount lustre server: %v", err)
@@ -43,11 +57,34 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 		}
 	}()
 
-	// crate volume
+	// lustre is mounted now, let's create the volume
+	internalPath := path.Join(getInternalMountPath(d.WorkingMountDir, volName), volName)
+	if err := os.MkdirAll(internalPath, os.FileMode(d.MountPermissions)); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create directory %s: %v", internalPath, err)
+	}
 
-	// setup quota
+	// set directory permissions because of umask problems
+	if d.MountPermissions > 0 {
+		// Reset directory permissions because of umask problems
+		if err := os.Chmod(internalPath, os.FileMode(d.MountPermissions)); err != nil {
+			klog.Warningf("failed to chmod subdirectory: %v", err)
+		}
+	}
 
-	return nil, nil
+	parameters := req.GetParameters()
+	setKeyValueInMap(parameters, StorageParamMgsAddress, mgsAddress)
+	setKeyValueInMap(parameters, StorageParamFsName, fsName)
+	setKeyValueInMap(parameters, StorageParamSubdir, subdir)
+
+	// todo: setup quota
+	return &csi.CreateVolumeResponse{
+		Volume: &csi.Volume{
+			VolumeId:      volName,
+			CapacityBytes: 0, // by setting it to zero, Provisioner will use PVC requested size as PV size
+			VolumeContext: parameters,
+			ContentSource: req.GetVolumeContentSource(),
+		},
+	}, nil
 }
 
 func checkParameters(parameters map[string]string) error {
@@ -66,7 +103,20 @@ func checkParameters(parameters map[string]string) error {
 	return nil
 }
 
-func (d *Driver) internalUnmount(ctx context.Context, volName string) error {
+func setKeyValueInMap(m map[string]string, key, value string) {
+	if m == nil {
+		return
+	}
+	for k := range m {
+		if strings.EqualFold(k, key) {
+			m[k] = value
+			return
+		}
+	}
+	m[key] = value
+}
+
+func (d *ControllerServer) internalUnmount(ctx context.Context, volName string) error {
 	targetPath := getInternalMountPath(d.WorkingMountDir, volName)
 
 	// Unmount nfs server at base-dir
@@ -87,7 +137,7 @@ func (d *Driver) internalUnmount(ctx context.Context, volName string) error {
 	return err
 }
 
-func (d *Driver) internalMount(ctx context.Context, volName, mgsAddress, fsName, subdir string) error {
+func (d *ControllerServer) internalMount(ctx context.Context, volName, mgsAddress, fsName, subdir string) error {
 	if volName == "" {
 		return status.Error(codes.InvalidArgument,
 			"volumeName must be provided")
@@ -135,9 +185,9 @@ func (d *Driver) internalMount(ctx context.Context, volName, mgsAddress, fsName,
 
 func getInternalMountPath(baseDir, volName string) string {
 	if baseDir == "" {
-		return filepath.Join("/mnt", volName)
+		return path.Join("/mnt", volName)
 	}
-	return filepath.Join(baseDir, volName)
+	return path.Join(baseDir, volName)
 }
 
 func isVersionGreaterOrEqual(version1, version2 string) bool {
@@ -197,7 +247,7 @@ func validateVolumeCapabilities(capabilities []*csi.VolumeCapability) error {
 	return nil
 }
 
-func (d *Driver) DeleteVolume(_ context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
+func (d *ControllerServer) DeleteVolume(_ context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 	klog.V(2).Infof("DeleteVolume called, volumeName: %s", req.GetVolumeId())
 
 	// internal mount lustre to local
@@ -206,14 +256,14 @@ func (d *Driver) DeleteVolume(_ context.Context, req *csi.DeleteVolumeRequest) (
 	return nil, nil
 }
 
-func (d *Driver) ValidateVolumeCapabilities(
+func (d *ControllerServer) ValidateVolumeCapabilities(
 	_ context.Context,
 	req *csi.ValidateVolumeCapabilitiesRequest,
 ) (*csi.ValidateVolumeCapabilitiesResponse, error) {
 	return nil, nil
 }
 
-func (d *Driver) ControllerGetCapabilities(
+func (d *ControllerServer) ControllerGetCapabilities(
 	_ context.Context,
 	_ *csi.ControllerGetCapabilitiesRequest,
 ) (*csi.ControllerGetCapabilitiesResponse, error) {
