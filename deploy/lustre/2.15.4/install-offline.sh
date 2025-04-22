@@ -19,6 +19,9 @@ PACKAGE_DIR="${package_dir:-./lustre-offline-rpms}"
 echo "install all packages under ${PACKAGE_DIR}"
 rpm -Uvh "${PACKAGE_DIR}"/*.rpm --force --nodeps || true
 
+echo "install devtools  packages under ${PACKAGE_DIR}/devtools_rpms"
+rpm -Uvh "${BASE_DIR}/devtools_rpms/"*.rpm --force --nodeps || true
+
 echo "install kernel-devel and kernel-headers packages under ${PACKAGE_DIR}/kernel-513"
 rpm -Uvh "${PACKAGE_DIR}/kernel-513/"*.rpm --force --nodeps || true
 
@@ -28,6 +31,10 @@ rpm -Uvh "${PACKAGE_DIR}/zfs/"*.rpm --force --nodeps || true
 echo "install lustre packages under ${PACKAGE_DIR}/lustre"
 rpm -Uvh "${PACKAGE_DIR}/lustre/"*.rpm --force --nodeps || true
 
+echo "install HA packages under ${PACKAGE_DIR}/ha-rpms"
+rpm -Uvh "${BASE_DIR}/ha-rpms/"*.rpm --force --nodeps || true
+
 echo "loading and checking zfs and lustre kernel modules..."
 modprobe zfs && echo "zfs modules loaded successfully" || echo "failed to loaded zfs modules"
 modprobe lustre && echo "lustre modules loaded successfully" || echo "failed to loaded lustre modules"
+
