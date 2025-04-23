@@ -1,4 +1,4 @@
-PKG = luskits/luscsi
+PKG = github.com/luskits/luscsi
 GIT_COMMIT ?= $(shell git rev-parse HEAD)
 REGISTRY ?= ghcr.io/luskits
 TARGET ?= luscsi
@@ -8,7 +8,7 @@ IMAGE_VERSION ?= 99.9-dev
 IMAGE_TAG ?= $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERSION)
 IMAGE_TAG_LATEST = $(REGISTRY)/$(IMAGE_NAME):latest
 BUILD_DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-LDFLAGS ?= "-X ${PKG}/pkg/csi.driverVersion=${IMAGE_VERSION} -X ${PKG}/pkg/csi.gitCommit=${GIT_COMMIT} -X ${PKG}/pkg/csi.buildDate=${BUILD_DATE} -extldflags '-static'"
+LDFLAGS ?= "-X ${PKG}/pkg/luscsi.driverVersion=${IMAGE_VERSION} -X ${PKG}/pkg/luscsi.gitCommit=${GIT_COMMIT} -X ${PKG}/pkg/luscsi.buildDate=${BUILD_DATE} -extldflags '-static'"
 GO111MODULE = on
 GOPATH ?= $(shell go env GOPATH)
 GOBIN ?= $(GOPATH)/bin

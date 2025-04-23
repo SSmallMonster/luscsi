@@ -148,7 +148,7 @@ func (d *ControllerServer) internalMount(ctx context.Context, volName, mgsAddres
 			"mgsAddress and fsName must be provided")
 	}
 
-	sharePath := filepath.Join(mgsAddress, fsName, subdir)
+	sharePath := filepath.Join(mgsAddress+string(filepath.ListSeparator), fsName, subdir)
 	targetPath := getInternalMountPath(d.WorkingMountDir, volName)
 	notMnt, err := d.mounter.IsLikelyNotMountPoint(targetPath)
 	if err != nil {

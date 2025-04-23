@@ -2,6 +2,7 @@ package luscsi
 
 import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"k8s.io/klog/v2"
 	mount "k8s.io/mount-utils"
 	"runtime"
 )
@@ -74,6 +75,7 @@ func (n *Driver) AddNodeServiceCapabilities(nl []csi.NodeServiceCapability_RPC_T
 }
 
 func NewDriver(options *DriverOptions) *Driver {
+	options.DriverVersion = driverVersion
 	d := Driver{
 		DriverOptions: *options,
 	}
@@ -89,6 +91,12 @@ func NewDriver(options *DriverOptions) *Driver {
 }
 
 func (d *Driver) Run(testMode bool) {
+	driverInfo, err := GetVersionYAML(d.DriverName)
+	if err != nil {
+		klog.Fatalf("Failed to get driver info")
+	}
+	klog.V(2).Infof("\nDRIVER INFORMATION:\n-------------------\n%s\n\nStreaming logs below:", driverInfo)
+
 	s := NewNonBlockingGRPCServer()
 	s.Start(d.Endpoint, NewIdentifyServer(*d), NewControllerServer(*d), NewNodeServer(*d), testMode)
 	s.Wait()
