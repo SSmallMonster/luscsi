@@ -9,19 +9,30 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
+type IdentifyServer struct {
+	Driver
+	csi.IdentityServer
+}
+
+func NewIdentifyServer(driver Driver) *IdentifyServer {
+	return &IdentifyServer{
+		Driver: driver,
+	}
+}
+
 // GetPluginInfo return the version and name of the plugin
-func (d *Driver) GetPluginInfo(_ context.Context, _ *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
-	if d.Name == "" {
+func (d *IdentifyServer) GetPluginInfo(_ context.Context, _ *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
+	if d.DriverName == "" {
 		return nil, status.Error(codes.Unavailable, "Driver name not configured")
 	}
 
-	if d.Version == "" {
+	if d.DriverVersion == "" {
 		return nil, status.Error(codes.Unavailable, "Driver is missing version")
 	}
 
 	return &csi.GetPluginInfoResponse{
-		Name:          d.Name,
-		VendorVersion: d.Version,
+		Name:          d.DriverName,
+		VendorVersion: d.DriverVersion,
 	}, nil
 }
 
@@ -29,12 +40,12 @@ func (d *Driver) GetPluginInfo(_ context.Context, _ *csi.GetPluginInfoRequest) (
 // This method does not need to return anything.
 // Currently the spec does not dictate what you should return either.
 // Hence, return an empty response
-func (d *Driver) Probe(_ context.Context, _ *csi.ProbeRequest) (*csi.ProbeResponse, error) {
+func (d *IdentifyServer) Probe(_ context.Context, _ *csi.ProbeRequest) (*csi.ProbeResponse, error) {
 	return &csi.ProbeResponse{Ready: &wrapperspb.BoolValue{Value: true}}, nil
 }
 
 // GetPluginCapabilities returns the capabilities of the plugin
-func (d *Driver) GetPluginCapabilities(_ context.Context, _ *csi.GetPluginCapabilitiesRequest) (*csi.GetPluginCapabilitiesResponse, error) {
+func (d *IdentifyServer) GetPluginCapabilities(_ context.Context, _ *csi.GetPluginCapabilitiesRequest) (*csi.GetPluginCapabilitiesResponse, error) {
 	return &csi.GetPluginCapabilitiesResponse{
 		Capabilities: []*csi.PluginCapability{
 			{
