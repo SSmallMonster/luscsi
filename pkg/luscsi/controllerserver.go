@@ -15,6 +15,14 @@ import (
 	"time"
 )
 
+type lustreVolume struct {
+	volumeName string
+	mgsAddress string
+	fsName     string
+	subdir     string
+	size       int64
+}
+
 type ControllerServer struct {
 	Driver
 	csi.ControllerServer
@@ -42,23 +50,19 @@ func (d *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolu
 
 	// volume capacity is only supported when lustre is 2.16.0 or higher
 	// todo: check lctl version
+	lusVol, _ := getLusVolumeFromRequest(req)
 
-	volName := req.GetName()
-	fsName := req.GetParameters()[StorageParamFsName]
-	subdir := req.GetParameters()[StorageParamSubdir]
-	mgsAddress := req.GetParameters()[StorageParamMgsAddress]
-
-	if err := d.internalMount(ctx, volName, mgsAddress, fsName, subdir); err != nil {
+	if err := d.internalMount(ctx, lusVol); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to mount lustre server: %v", err)
 	}
 	defer func() {
-		if err := d.internalUnmount(ctx, volName); err != nil {
+		if err := d.internalUnmount(ctx, lusVol.volumeName); err != nil {
 			klog.Warningf("failed to unmount lustre server: %v", err)
 		}
 	}()
 
 	// lustre is mounted now, let's create the volume
-	internalPath := path.Join(getInternalMountPath(d.WorkingMountDir, volName), volName)
+	internalPath := path.Join(getInternalMountPath(d.WorkingMountDir, lusVol.volumeName), lusVol.volumeName)
 	if err := os.MkdirAll(internalPath, os.FileMode(d.MountPermissions)); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create directory %s: %v", internalPath, err)
 	}
@@ -72,18 +76,32 @@ func (d *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolu
 	}
 
 	parameters := req.GetParameters()
-	setKeyValueInMap(parameters, StorageParamMgsAddress, mgsAddress)
-	setKeyValueInMap(parameters, StorageParamFsName, fsName)
-	setKeyValueInMap(parameters, StorageParamSubdir, subdir)
+	setKeyValueInMap(parameters, StorageParamMgsAddress, lusVol.mgsAddress)
+	setKeyValueInMap(parameters, StorageParamFsName, lusVol.fsName)
+	setKeyValueInMap(parameters, StorageParamSubdir, lusVol.subdir)
 
 	// todo: setup quota
 	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
-			VolumeId:      volName,
-			CapacityBytes: 0, // by setting it to zero, Provisioner will use PVC requested size as PV size
+			VolumeId:      lusVol.volumeName,
+			CapacityBytes: lusVol.size,
 			VolumeContext: parameters,
 			ContentSource: req.GetVolumeContentSource(),
 		},
+	}, nil
+}
+
+func getLusVolumeFromRequest(req *csi.CreateVolumeRequest) (*lustreVolume, error) {
+	if req == nil || req.GetParameters() == nil {
+		return nil, fmt.Errorf("request or parameter is empty")
+	}
+
+	return &lustreVolume{
+		volumeName: req.GetName(),
+		mgsAddress: req.GetParameters()[StorageParamMgsAddress],
+		fsName:     req.GetParameters()[StorageParamFsName],
+		subdir:     req.GetParameters()[StorageParamSubdir],
+		size:       req.GetCapacityRange().GetRequiredBytes(),
 	}, nil
 }
 
@@ -137,19 +155,19 @@ func (d *ControllerServer) internalUnmount(ctx context.Context, volName string) 
 	return err
 }
 
-func (d *ControllerServer) internalMount(ctx context.Context, volName, mgsAddress, fsName, subdir string) error {
-	if volName == "" {
+func (d *ControllerServer) internalMount(ctx context.Context, lusVol *lustreVolume) error {
+	if lusVol.volumeName == "" {
 		return status.Error(codes.InvalidArgument,
 			"volumeName must be provided")
 	}
 
-	if mgsAddress == "" || fsName == "" {
+	if lusVol.mgsAddress == "" || lusVol.fsName == "" {
 		return status.Error(codes.InvalidArgument,
 			"mgsAddress and fsName must be provided")
 	}
 
-	sharePath := filepath.Join(mgsAddress+string(filepath.ListSeparator), fsName, subdir)
-	targetPath := getInternalMountPath(d.WorkingMountDir, volName)
+	sharePath := filepath.Join(lusVol.mgsAddress+string(filepath.ListSeparator), lusVol.fsName, lusVol.subdir)
+	targetPath := getInternalMountPath(d.WorkingMountDir, lusVol.volumeName)
 	notMnt, err := d.mounter.IsLikelyNotMountPoint(targetPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -162,7 +180,7 @@ func (d *ControllerServer) internalMount(ctx context.Context, volName, mgsAddres
 		}
 	}
 	if !notMnt {
-		klog.V(2).Infof("volumeName %s is already mounted at %s", volName, targetPath)
+		klog.V(2).Infof("volumeName %s is already mounted at %s", lusVol.volumeName, targetPath)
 		return nil
 	}
 
