@@ -1,10 +1,16 @@
 package luscsi
 
 import (
+	"fmt"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"k8s.io/klog/v2"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
 )
 
 type NodeServer struct {
@@ -18,11 +24,119 @@ func NewNodeServer(driver Driver) *NodeServer {
 	}
 }
 
-func (d *NodeServer) NodePublishVolume(
-	_ context.Context,
-	req *csi.NodePublishVolumeRequest,
-) (*csi.NodePublishVolumeResponse, error) {
-	return nil, nil
+func (d *NodeServer) getLusVolumeFromRequest(req *csi.NodePublishVolumeRequest) (*lustreVolume, error) {
+	lusVol := &lustreVolume{}
+	volCap := req.GetVolumeCapability()
+	if volCap == nil || volCap.GetMount() == nil {
+		return nil, status.Error(codes.InvalidArgument, "Volume capability missing in request")
+	}
+	lusVol.volCap = volCap
+
+	volumeID := req.GetVolumeId()
+	if len(volumeID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Volume ID missing in request")
+	}
+	lusVol.volID = volumeID
+
+	targetPath := req.GetTargetPath()
+	if len(targetPath) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Target path not provided")
+	}
+	lusVol.targetPath = targetPath
+
+	mgsAddress, ok := req.GetVolumeContext()[StorageParamMgsAddress]
+	if !ok {
+		return nil, status.Error(codes.InvalidArgument, "mgsAddress is not provided")
+	}
+	lusVol.mgsAddress = mgsAddress
+
+	fsName, ok := req.GetVolumeContext()[StorageParamFsName]
+	if !ok {
+		return nil, status.Error(codes.InvalidArgument, "fsName is not provided")
+	}
+	lusVol.fsName = fsName
+
+	subDir, ok := req.GetVolumeContext()[StorageParamSubdir]
+	if !ok {
+		return nil, status.Error(codes.InvalidArgument, "subDir is not provided")
+	}
+	lusVol.subDir = subDir
+
+	return lusVol, nil
+}
+
+func (d *NodeServer) NodePublishVolume(_ context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
+	lusVol, err := d.getLusVolumeFromRequest(req)
+	if err != nil {
+		klog.V(2).ErrorS(err, "failed to get volume info")
+		return nil, status.Errorf(codes.InvalidArgument, err.Error())
+	}
+
+	mountOptions := lusVol.volCap.GetMount().GetMountFlags()
+	if req.GetReadonly() {
+		mountOptions = append(mountOptions, "ro")
+	}
+
+	// todo(ming): make this configurable from the storageclass parameters
+	mountPermissions := d.MountPermissions
+	source := filepath.Join(lusVol.mgsAddress+string(filepath.ListSeparator), lusVol.fsName, lusVol.subDir)
+	notMnt, err := d.mounter.IsLikelyNotMountPoint(lusVol.targetPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			if err := os.MkdirAll(lusVol.targetPath, os.FileMode(mountPermissions)); err != nil {
+				return nil, status.Error(codes.Internal, err.Error())
+			}
+			notMnt = true
+		} else {
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+	}
+	if !notMnt {
+		return &csi.NodePublishVolumeResponse{}, nil
+	}
+
+	klog.V(2).Infof("NodePublishVolume: volumeID(%v) source(%s) targetPath(%s) mountflags(%v)", lusVol.volID, source, lusVol.targetPath, mountOptions)
+	execFunc := func() error {
+		return d.mounter.Mount(source, lusVol.targetPath, "lustre", mountOptions)
+	}
+	timeoutFunc := func() error { return fmt.Errorf("time out") }
+	if err := WaitUntilTimeout(90*time.Second, execFunc, timeoutFunc); err != nil {
+		if os.IsPermission(err) {
+			return nil, status.Error(codes.PermissionDenied, err.Error())
+		}
+		if strings.Contains(err.Error(), "invalid argument") {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	if mountPermissions > 0 {
+		if err := chmodIfPermissionMismatch(lusVol.targetPath, os.FileMode(mountPermissions)); err != nil {
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+	} else {
+		klog.V(2).Infof("skip chmod on targetPath(%s) since mountPermissions is set as 0", lusVol.targetPath)
+	}
+
+	klog.V(2).Infof("volume(%s) mount %s on %s succeeded", lusVol.volID, source, lusVol.targetPath)
+	return &csi.NodePublishVolumeResponse{}, nil
+}
+
+func chmodIfPermissionMismatch(targetPath string, mode os.FileMode) error {
+	info, err := os.Lstat(targetPath)
+	if err != nil {
+		return err
+	}
+	perm := info.Mode() & os.ModePerm
+	if perm != mode {
+		klog.V(2).Infof("chmod targetPath(%s, mode:0%o) with permissions(0%o)", targetPath, info.Mode(), mode)
+		if err := os.Chmod(targetPath, mode); err != nil {
+			return err
+		}
+	} else {
+		klog.V(2).Infof("skip chmod on targetPath(%s) since mode is already 0%o)", targetPath, info.Mode())
+	}
+	return nil
 }
 
 func (d *NodeServer) NodeUnpublishVolume(
