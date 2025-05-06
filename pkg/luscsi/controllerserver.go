@@ -16,10 +16,12 @@ import (
 )
 
 type lustreVolume struct {
-	volumeName string
+	volCap     *csi.VolumeCapability
+	targetPath string
+	volID      string
 	mgsAddress string
 	fsName     string
-	subdir     string
+	subDir     string
 	size       int64
 }
 
@@ -36,7 +38,7 @@ func NewControllerServer(driver Driver) *ControllerServer {
 
 func (d *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 
-	klog.V(2).Infof("CreateVolume called, volumeName: %s", req.GetName())
+	klog.V(2).Infof("CreateVolume called, volID: %s", req.GetName())
 
 	if err := checkVolumeRequest(req); err != nil {
 		klog.V(2).ErrorS(err, "failed to check request")
@@ -56,13 +58,13 @@ func (d *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolu
 		return nil, status.Errorf(codes.Internal, "failed to mount lustre server: %v", err)
 	}
 	defer func() {
-		if err := d.internalUnmount(ctx, lusVol.volumeName); err != nil {
+		if err := d.internalUnmount(ctx, lusVol.volID); err != nil {
 			klog.Warningf("failed to unmount lustre server: %v", err)
 		}
 	}()
 
 	// lustre is mounted now, let's create the volume
-	internalPath := path.Join(getInternalMountPath(d.WorkingMountDir, lusVol.volumeName), lusVol.volumeName)
+	internalPath := path.Join(getInternalMountPath(d.WorkingMountDir, lusVol.volID), lusVol.volID)
 	if err := os.MkdirAll(internalPath, os.FileMode(d.MountPermissions)); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create directory %s: %v", internalPath, err)
 	}
@@ -78,12 +80,12 @@ func (d *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolu
 	parameters := req.GetParameters()
 	setKeyValueInMap(parameters, StorageParamMgsAddress, lusVol.mgsAddress)
 	setKeyValueInMap(parameters, StorageParamFsName, lusVol.fsName)
-	setKeyValueInMap(parameters, StorageParamSubdir, lusVol.subdir)
+	setKeyValueInMap(parameters, StorageParamSubdir, lusVol.subDir)
 
 	// todo: setup quota
 	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
-			VolumeId:      lusVol.volumeName,
+			VolumeId:      lusVol.volID,
 			CapacityBytes: lusVol.size,
 			VolumeContext: parameters,
 			ContentSource: req.GetVolumeContentSource(),
@@ -97,10 +99,10 @@ func getLusVolumeFromRequest(req *csi.CreateVolumeRequest) (*lustreVolume, error
 	}
 
 	return &lustreVolume{
-		volumeName: req.GetName(),
+		volID:      req.GetName(),
 		mgsAddress: req.GetParameters()[StorageParamMgsAddress],
 		fsName:     req.GetParameters()[StorageParamFsName],
-		subdir:     req.GetParameters()[StorageParamSubdir],
+		subDir:     req.GetParameters()[StorageParamSubdir],
 		size:       req.GetCapacityRange().GetRequiredBytes(),
 	}, nil
 }
@@ -156,9 +158,9 @@ func (d *ControllerServer) internalUnmount(ctx context.Context, volName string) 
 }
 
 func (d *ControllerServer) internalMount(ctx context.Context, lusVol *lustreVolume) error {
-	if lusVol.volumeName == "" {
+	if lusVol.volID == "" {
 		return status.Error(codes.InvalidArgument,
-			"volumeName must be provided")
+			"volID must be provided")
 	}
 
 	if lusVol.mgsAddress == "" || lusVol.fsName == "" {
@@ -166,8 +168,8 @@ func (d *ControllerServer) internalMount(ctx context.Context, lusVol *lustreVolu
 			"mgsAddress and fsName must be provided")
 	}
 
-	sharePath := filepath.Join(lusVol.mgsAddress+string(filepath.ListSeparator), lusVol.fsName, lusVol.subdir)
-	targetPath := getInternalMountPath(d.WorkingMountDir, lusVol.volumeName)
+	sharePath := filepath.Join(lusVol.mgsAddress+string(filepath.ListSeparator), lusVol.fsName, lusVol.subDir)
+	targetPath := getInternalMountPath(d.WorkingMountDir, lusVol.volID)
 	notMnt, err := d.mounter.IsLikelyNotMountPoint(targetPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -180,7 +182,7 @@ func (d *ControllerServer) internalMount(ctx context.Context, lusVol *lustreVolu
 		}
 	}
 	if !notMnt {
-		klog.V(2).Infof("volumeName %s is already mounted at %s", lusVol.volumeName, targetPath)
+		klog.V(2).Infof("volID %s is already mounted at %s", lusVol.volID, targetPath)
 		return nil
 	}
 
@@ -266,7 +268,7 @@ func validateVolumeCapabilities(capabilities []*csi.VolumeCapability) error {
 }
 
 func (d *ControllerServer) DeleteVolume(_ context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
-	klog.V(2).Infof("DeleteVolume called, volumeName: %s", req.GetVolumeId())
+	klog.V(2).Infof("DeleteVolume called, volID: %s", req.GetVolumeId())
 
 	// internal mount lustre to local
 
