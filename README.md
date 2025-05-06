@@ -44,9 +44,9 @@ metadata:
 name: lustre-sc
 provisioner: luscsi.luskits.io
 parameters:
-	mgsAddress: "example.mgs.address@o2ib"
-	fsName: "lustrefs"
-	subdir: "/path/to/subdir"
+  mgsAddress: "example.mgs.address@o2ib"
+  fsName: "lustrefs"
+  subdir: "/path/to/subdir"
 ```
 
 
@@ -59,12 +59,13 @@ kind: PersistentVolumeClaim
 metadata:
 name: lustre-pvc
 spec:
-	accessModes:
-	- ReadWriteMany
-	storageClassName: lustre-sc
-	resources:
-		requests:
-			storage: 10Gi
+  accessModes:
+  - ReadWriteMany
+  storageClassName: lustre-sc
+  resources:
+    requests:
+      storage: 10Gi
+  volumeMode: Filesystem
 ```
 
 
@@ -78,15 +79,15 @@ metadata:
 name: example-pod
 spec:
   containers:
-	- name: example-container
-		image: nginx
-		volumeMounts:
-    - mountPath: "/mnt/lustre"
-      name: lustre-volume
-      volumes:
-      - name: lustre-volume
-        persistentVolumeClaim:
-        claimName: lustre-pvc
+    - name: example-container
+      image: nginx
+      volumeMounts:
+      - mountPath: "/mnt/lustre"
+        name: lustre-volume
+    volumes:
+    - name: lustre-volume
+      persistentVolumeClaim:
+      claimName: lustre-pvc
 ```
 
 
