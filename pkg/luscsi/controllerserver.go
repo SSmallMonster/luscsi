@@ -173,7 +173,7 @@ func (d *ControllerServer) internalMount(ctx context.Context, lusVol *lustreVolu
 	notMnt, err := d.mounter.IsLikelyNotMountPoint(targetPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			if err := os.MkdirAll(targetPath, os.FileMode(d.MountPermissions)); err != nil {
+			if err = os.MkdirAll(targetPath, os.FileMode(d.MountPermissions)); err != nil {
 				return status.Error(codes.Internal, err.Error())
 			}
 			notMnt = true
@@ -191,7 +191,7 @@ func (d *ControllerServer) internalMount(ctx context.Context, lusVol *lustreVolu
 		return d.mounter.Mount(sharePath, targetPath, "lustre", nil)
 	}
 	timeoutFunc := func() error { return fmt.Errorf("time out") }
-	if err := WaitUntilTimeout(90*time.Second, execFunc, timeoutFunc); err != nil {
+	if err = WaitUntilTimeout(90*time.Second, execFunc, timeoutFunc); err != nil {
 		if os.IsPermission(err) {
 			return status.Error(codes.PermissionDenied, err.Error())
 		}
