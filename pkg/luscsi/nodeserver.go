@@ -7,6 +7,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
+	"k8s.io/mount-utils"
 	"os"
 	"path/filepath"
 	"strings"
@@ -79,7 +80,7 @@ func (d *NodeServer) NodePublishVolume(_ context.Context, req *csi.NodePublishVo
 
 	// todo(ming): make this configurable from the storageclass parameters
 	mountPermissions := d.MountPermissions
-	source := filepath.Join(lusVol.mgsAddress+string(filepath.ListSeparator), lusVol.fsName, lusVol.subDir)
+	source := filepath.Join(lusVol.mgsAddress+string(filepath.ListSeparator), lusVol.fsName, lusVol.subDir, lusVol.volID)
 	notMnt, err := d.mounter.IsLikelyNotMountPoint(lusVol.targetPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -92,6 +93,7 @@ func (d *NodeServer) NodePublishVolume(_ context.Context, req *csi.NodePublishVo
 		}
 	}
 	if !notMnt {
+		klog.V(2).Infof("NodePublishVolume: volumeID(%v) already mounted on targetPath(%s) source(%s) mountflags(%v)", lusVol.volID, lusVol.targetPath, source, mountOptions)
 		return &csi.NodePublishVolumeResponse{}, nil
 	}
 
@@ -139,11 +141,36 @@ func chmodIfPermissionMismatch(targetPath string, mode os.FileMode) error {
 	return nil
 }
 
-func (d *NodeServer) NodeUnpublishVolume(
-	_ context.Context,
-	req *csi.NodeUnpublishVolumeRequest,
-) (*csi.NodeUnpublishVolumeResponse, error) {
-	return nil, nil
+func (d *NodeServer) NodeUnpublishVolume(_ context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
+	lusVol := &lustreVolume{}
+	targetPath := req.GetTargetPath()
+	if len(targetPath) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Target path not provided")
+	}
+	volID := req.GetVolumeId()
+	if len(volID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Volume ID missing in request")
+	}
+
+	lusVol.volID = volID
+	lusVol.targetPath = targetPath
+
+	klog.V(2).Infof("NodeUnpublishVolume: unmounting volume %s on %s", lusVol.volID, lusVol.targetPath)
+	var err error
+	forceUnmounter, ok := d.mounter.(mount.MounterForceUnmounter)
+	if ok {
+		klog.V(2).Infof("force unmount %s on %s", lusVol.volID, lusVol.targetPath)
+		err = mount.CleanupMountWithForce(targetPath, forceUnmounter, true, 30*time.Second)
+	} else {
+		err = mount.CleanupMountPoint(targetPath, d.mounter, true)
+	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to unmount target %q: %v", targetPath, err)
+	}
+
+	klog.V(2).Infof("NodeUnpublishVolume: unmount volume %s on %s successfully", lusVol.volID, lusVol.targetPath)
+
+	return &csi.NodeUnpublishVolumeResponse{}, nil
 }
 
 func (d *NodeServer) NodeStageVolume(_ context.Context, _ *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
