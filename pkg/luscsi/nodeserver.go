@@ -199,6 +199,10 @@ func (d *NodeServer) NodeGetInfo(
 ) (*csi.NodeGetInfoResponse, error) {
 	return &csi.NodeGetInfoResponse{
 		NodeId: d.NodeID,
+		AccessibleTopology: &csi.Topology{
+			Segments: map[string]string{
+				DefaultTopologyKey: DefaultDriverName,
+			}},
 	}, nil
 }
 

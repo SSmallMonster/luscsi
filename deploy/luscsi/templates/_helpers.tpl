@@ -31,18 +31,6 @@ Create chart name and version as used by the chart label.
 {{- end }}
 
 {{/*
-Common labels
-*/}}
-{{- define "luscsi.labels" -}}
-helm.sh/chart: {{ include "luscsi.chart" . }}
-{{ include "luscsi.selectorLabels" . }}
-{{- if .Chart.AppVersion }}
-app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
-{{- end }}
-app.kubernetes.io/managed-by: {{ .Release.Service }}
-{{- end }}
-
-{{/*
 Selector labels
 */}}
 {{- define "luscsi.selectorLabels" -}}
@@ -50,13 +38,14 @@ app.kubernetes.io/name: {{ include "luscsi.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
-{{/*
-Create the name of the service account to use
-*/}}
-{{- define "luscsi.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- default (include "luscsi.fullname" .) .Values.serviceAccount.name }}
-{{- else }}
-{{- default "default" .Values.serviceAccount.name }}
-{{- end }}
-{{- end }}
+{{/* vim: set filetype=mustache: */}}
+
+{{/* labels for helm resources */}}
+{{- define "luscsi.labels" -}}
+labels:
+  heritage: "{{ .Release.Service }}"
+  release: "{{ .Release.Name }}"
+  revision: "{{ .Release.Revision }}"
+  chart: "{{ .Chart.Name }}"
+  chartVersion: "{{ .Chart.Version }}"
+{{- end -}}

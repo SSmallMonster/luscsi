@@ -30,7 +30,8 @@ var (
 )
 
 var (
-	DefaultDriverName = "luscsi.luskits.io"
+	DefaultDriverName  = "luscsi.luskits.io"
+	DefaultTopologyKey = "topology.luscsi.luskits.io/node"
 )
 
 const (
