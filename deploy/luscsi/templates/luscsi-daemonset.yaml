@@ -65,6 +65,10 @@ spec:
             - name: pods-mount-dir
               mountPath: /var/lib/kubelet/pods
               mountPropagation: "Bidirectional"
+            - mountPath: /sbin
+              name: host-sbin
+            - mountPath: /bin
+              name: host-bin
       volumes:
         - name: plugin-dir
           hostPath:
@@ -78,3 +82,11 @@ spec:
             path: {{ .Values.global.kubeletRootDir }}/plugins_registry
             type: Directory
           name: registration-dir
+        - hostPath:
+            path: /sbin
+            type: Directory
+          name: host-sbin
+        - hostPath:
+            path: /bin
+            type: Directory
+          name: host-bin

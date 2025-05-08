@@ -9,4 +9,4 @@ allowVolumeExpansion: false
 parameters:
   mgsAddress: "10.6.118.91@tcp"
   fsName: "debug-fs"
-  subdir: "/csi~volume"
+  subDir: "/csi~volume"
