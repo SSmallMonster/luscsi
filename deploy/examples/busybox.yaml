@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: busybox-pod-luscsi
+spec:
+  containers:
+    - name: busybox-container
+      image: busybox:1.36
+      args:
+        - /bin/sh
+        - -c
+        - sleep 3600
+      volumeMounts:
+        - name: busybox-volume
+          mountPath: /data
+  volumes:
+    - name: busybox-volume
+      persistentVolumeClaim:
+        claimName: luscsi-volume
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: luscsi-volume
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: luscsi.luskits.io

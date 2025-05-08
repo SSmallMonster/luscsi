@@ -1,0 +1,12 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: luscsi.luskits.io
+provisioner: luscsi.luskits.io
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+allowVolumeExpansion: false
+parameters:
+  mgsAddress: "10.6.118.91@tcp"
+  fsName: "debug-fs"
+  subdir: "/csi~volume"

@@ -1,0 +1,80 @@
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: luscsi-node
+  namespace: {{ .Release.Namespace }}
+{{ include "luscsi.labels" . | indent 2 }}
+    app: luscsi-node
+spec:
+  selector:
+    matchLabels:
+      app: luscsi-node
+  template:
+    metadata:
+{{ include "luscsi.labels" . | indent 6 }}
+        app: luscsi-node
+    spec:
+      #hostNetwork: true # original nfs connection would be broken without hostNetwork setting
+      #dnsPolicy: ClusterFirstWithHostNet
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - name: node-driver-registrar
+          image: {{ .Values.global.k8sImageRegistry }}/{{ .Values.luscsiNode.nodeDriverRegistrar.image.repository }}:{{ .Values.luscsiNode.nodeDriverRegistrar.image.tag }}
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "rm -rf /registration/luscsi.luskits.io /registration/luscsi.luskits.io/csi.sock"]
+          args:
+            - --v=5
+            - --csi-address=/plugin/csi.sock
+            - --kubelet-registration-path={{ .Values.global.kubeletRootDir }}/plugins/luscsi.luskits.io/csi.sock
+          env:
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          imagePullPolicy: {{ .Values.luscsiNode.nodeDriverRegistrar.image.pullPolicy }}
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /plugin
+            - name: registration-dir
+              mountPath: /registration
+        - name: luscsi
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ["SYS_ADMIN"]
+            allowPrivilegeEscalation: true
+          image: {{ .Values.global.luscsiImageRegistry }}/{{ .Values.luscsiNode.luscsi.image.repository }}:{{ .Values.luscsiNode.luscsi.image.tag }}
+          args :
+            - "-v=5"
+            - "--nodeid=$(NODE_ID)"
+            - "--endpoint=$(CSI_ENDPOINT)"
+          env:
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: CSI_ENDPOINT
+              value: unix://plugin/csi.sock
+          imagePullPolicy: {{ .Values.luscsiNode.luscsi.image.pullPolicy }}
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /plugin
+            - name: pods-mount-dir
+              mountPath: /var/lib/kubelet/pods
+              mountPropagation: "Bidirectional"
+      volumes:
+        - name: plugin-dir
+          hostPath:
+            path: {{ .Values.global.kubeletRootDir }}/plugins/luscsi.luskits.io
+            type: DirectoryOrCreate
+        - name: pods-mount-dir
+          hostPath:
+            path: {{ .Values.global.kubeletRootDir }}/pods
+            type: Directory
+        - hostPath:
+            path: {{ .Values.global.kubeletRootDir }}/plugins_registry
+            type: Directory
+          name: registration-dir
