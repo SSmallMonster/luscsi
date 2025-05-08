@@ -80,6 +80,8 @@ func NewDriver(options *DriverOptions) *Driver {
 	d := Driver{
 		DriverOptions: *options,
 	}
+	d.AddNodeServiceCapabilities(nodeServiceCapabilities)
+	d.AddControllerServiceCapabilities(controllerServiceCapabilities)
 
 	mounter := mount.New("")
 	if runtime.GOOS == "linux" {
