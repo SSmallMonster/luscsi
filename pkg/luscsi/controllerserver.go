@@ -280,12 +280,26 @@ func (d *ControllerServer) ValidateVolumeCapabilities(
 	_ context.Context,
 	req *csi.ValidateVolumeCapabilitiesRequest,
 ) (*csi.ValidateVolumeCapabilitiesResponse, error) {
-	return nil, nil
+	if len(req.GetVolumeId()) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Volume ID missing in request")
+	}
+	if err := validateVolumeCapabilities(req.GetVolumeCapabilities()); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	return &csi.ValidateVolumeCapabilitiesResponse{
+		Confirmed: &csi.ValidateVolumeCapabilitiesResponse_Confirmed{
+			VolumeCapabilities: req.GetVolumeCapabilities(),
+		},
+		Message: "",
+	}, nil
 }
 
 func (d *ControllerServer) ControllerGetCapabilities(
 	_ context.Context,
 	_ *csi.ControllerGetCapabilitiesRequest,
 ) (*csi.ControllerGetCapabilitiesResponse, error) {
-	return nil, nil
+	return &csi.ControllerGetCapabilitiesResponse{
+		Capabilities: d.Driver.cscap,
+	}, nil
 }
