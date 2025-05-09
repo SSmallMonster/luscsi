@@ -35,22 +35,6 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
-        - name: attacher
-          resources:
-            {{- toYaml .Values.csiController.attacher.resources | nindent 12 }}
-          image: {{ .Values.global.k8sImageRegistry}}/{{ .Values.csiController.attacher.image.repository}}:{{ .Values.csiController.attacher.image.tag}}
-          imagePullPolicy: IfNotPresent
-          args:
-            - "--v=5"
-            - "--csi-address=$(CSI_ADDRESS)"
-            - "--leader-election=true"
-            - "--timeout=120s"
-          env:
-            - name: CSI_ADDRESS
-              value: /csi/csi.sock
-          volumeMounts:
-            - name: socket-dir
-              mountPath: /csi
       volumes:
         - name: socket-dir
           hostPath:
