@@ -38,6 +38,7 @@ const (
 	StorageParamMgsAddress = "mgsAddress"
 	StorageParamFsName     = "fsName"
 	StorageParamSubdir     = "subDir"
+	StorageVolumeID        = "volumeID"
 )
 
 // DriverOptions defines driver parameters specified in driver deployment

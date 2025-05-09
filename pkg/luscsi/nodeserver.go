@@ -33,17 +33,17 @@ func (d *NodeServer) getLusVolumeFromRequest(req *csi.NodePublishVolumeRequest) 
 	}
 	lusVol.volCap = volCap
 
-	volumeID := req.GetVolumeId()
-	if len(volumeID) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "Volume ID missing in request")
-	}
-	lusVol.volID = volumeID
-
 	targetPath := req.GetTargetPath()
 	if len(targetPath) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "Target path not provided")
 	}
 	lusVol.targetPath = targetPath
+
+	volumeID, ok := req.GetVolumeContext()[StorageVolumeID]
+	if !ok {
+		return nil, status.Error(codes.InvalidArgument, "volumeID is not provided")
+	}
+	lusVol.volID = volumeID
 
 	mgsAddress, ok := req.GetVolumeContext()[StorageParamMgsAddress]
 	if !ok {
@@ -142,17 +142,22 @@ func chmodIfPermissionMismatch(targetPath string, mode os.FileMode) error {
 }
 
 func (d *NodeServer) NodeUnpublishVolume(_ context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
-	lusVol := &lustreVolume{}
 	targetPath := req.GetTargetPath()
 	if len(targetPath) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "Target path not provided")
 	}
+
 	volID := req.GetVolumeId()
 	if len(volID) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "Volume ID missing in request")
 	}
+	volumeSlice := strings.Split(volID, "#")
+	if len(volumeSlice) != 4 {
+		return nil, status.Error(codes.InvalidArgument, "invalid volumeID")
+	}
 
-	lusVol.volID = volID
+	lusVol := &lustreVolume{}
+	lusVol.volID = volumeSlice[3]
 	lusVol.targetPath = targetPath
 
 	klog.V(2).Infof("NodeUnpublishVolume: unmounting volume %s on %s", lusVol.volID, lusVol.targetPath)

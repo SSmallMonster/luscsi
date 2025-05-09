@@ -81,16 +81,22 @@ func (d *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolu
 	setKeyValueInMap(parameters, StorageParamMgsAddress, lusVol.mgsAddress)
 	setKeyValueInMap(parameters, StorageParamFsName, lusVol.fsName)
 	setKeyValueInMap(parameters, StorageParamSubdir, lusVol.subDir)
+	setKeyValueInMap(parameters, StorageVolumeID, lusVol.volID)
 
 	// todo: setup quota
 	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
-			VolumeId:      lusVol.volID,
+			VolumeId:      generateCSIVolumeID(lusVol),
 			CapacityBytes: lusVol.size,
 			VolumeContext: parameters,
 			ContentSource: req.GetVolumeContentSource(),
 		},
 	}, nil
+}
+
+func generateCSIVolumeID(volume *lustreVolume) string {
+	idElements := []string{volume.mgsAddress, volume.fsName, volume.subDir, volume.volID}
+	return strings.Join(idElements, "#")
 }
 
 func getLusVolumeFromRequest(req *csi.CreateVolumeRequest) (*lustreVolume, error) {
@@ -270,10 +276,35 @@ func validateVolumeCapabilities(capabilities []*csi.VolumeCapability) error {
 func (d *ControllerServer) DeleteVolume(_ context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 	klog.V(2).Infof("DeleteVolume called, volID: %s", req.GetVolumeId())
 
-	// internal mount lustre to local
+	volumeSlice := strings.Split(req.VolumeId, "#")
+	if len(volumeSlice) != 4 {
+		return nil, status.Error(codes.InvalidArgument, "invalid volumeID")
+	}
+	lusVol := &lustreVolume{
+		mgsAddress: volumeSlice[0],
+		fsName:     volumeSlice[1],
+		subDir:     volumeSlice[2],
+		volID:      volumeSlice[3],
+	}
 
-	// delete volume
-	return nil, nil
+	// internal mount lustre to local
+	if err := d.internalMount(nil, lusVol); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to mount lustre server: %v", err)
+	}
+	defer func() {
+		if err := d.internalUnmount(nil, lusVol.volID); err != nil {
+			klog.Warningf("failed to unmount lustre server: %v", err)
+		}
+	}()
+
+	// lustre is mounted now, let's delete the volume
+	internalPath := path.Join(getInternalMountPath(d.WorkingMountDir, lusVol.volID), lusVol.volID)
+	klog.V(2).Infof("removing directory at %v", internalPath)
+	if err := os.RemoveAll(internalPath); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to remove directory %s: %v", internalPath, err)
+	}
+
+	return &csi.DeleteVolumeResponse{}, nil
 }
 
 func (d *ControllerServer) ValidateVolumeCapabilities(
