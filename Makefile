@@ -13,17 +13,18 @@ GO111MODULE = on
 GOPATH ?= $(shell go env GOPATH)
 GOBIN ?= $(GOPATH)/bin
 DOCKER_CLI_EXPERIMENTAL = enabled
+BUILDKIT_CONFIG_FILE ?= /etc/buildkit/buildkitd.toml
 export GOPATH GOBIN GO111MODULE DOCKER_CLI_EXPERIMENTAL
 
 # The current context of image building
 # The architecture of the image
 ARCH ?= amd64
 # Output type of docker buildx build
-OUTPUT_TYPE ?= registry
+OUTPUT_TYPE ?= docker
 
 DEBUG ?= true
 
-ALL_ARCH.linux = amd64 #arm64
+ALL_ARCH.linux = amd64 arm64
 ALL_OS_ARCH = $(foreach arch, ${ALL_ARCH.linux}, linux-$(arch))
 
 ifeq ($(TARGET), luscsi)
@@ -34,42 +35,55 @@ build_luscsi_source_code = $()
 dockerfile = ./build/$(TARGET)/Dockerfile_$(TARGET)
 endif
 
-.PHONY: luscsi
-luscsi:
+.PHONY: build
+build:
 ifeq ($(DEBUG), true)
-	CGO_ENABLED=0 GOOS=linux GOARCH=$(ARCH) go build -gcflags "-N -l" -a -ldflags ${LDFLAGS} -mod vendor -o _output/luscsi ./cmd/luscsi.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=$(ARCH) go build -gcflags "-N -l" -a -ldflags ${LDFLAGS} -mod vendor -o _output/luscsi.$(ARCH) ./cmd/luscsi.go
 else
-	CGO_ENABLED=0 GOOS=linux GOARCH=$(ARCH) go build -s -w -a -ldflags ${LDFLAGS} -mod vendor -o _output/luscsi ./cmd/luscsi.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=$(ARCH) go build -s -w -a -ldflags ${LDFLAGS} -mod vendor -o _output/luscsi.$(ARCH) ./cmd/luscsi.go
 endif
 
-.PHONY: container-linux
-container-linux:
-	docker buildx build --pull --output=type=$(OUTPUT_TYPE) --platform="linux/$(ARCH)" \
-		-t $(IMAGE_TAG)-linux-$(ARCH) --build-arg ARCH=$(ARCH) -f $(dockerfile) .
+.PHONY: release
+release:
+	for arch in $(ALL_ARCH.linux); do \
+    		ARCH=$${arch} $(MAKE) build; \
+    done
 
-.PHONY: luscsi-container
-luscsi-container:
+	docker buildx build \
+		--push \
+		--platform linux/arm64,linux/amd64 \
+		-t $(IMAGE_TAG) \
+		-f $(dockerfile) .
+
+.PHONY: image
+image:
+	docker buildx build --pull --output=type=$(OUTPUT_TYPE) --platform="linux/$(ARCH)" \
+		-t $(IMAGE_TAG)-linux-$(ARCH) --build-arg ARCH=$(ARCH) -f $(dockerfile).$(ARCH) .
+
+.PHONY: release-manual
+release:
 	docker buildx rm container-builder || true
-	docker buildx create --use --name=container-builder
+
+	# create buildx builder
+	if [ -f "$(BUILDKIT_CONFIG_FILE)" ]; then \
+		docker buildx create --use --name=container-builder --config "$(BUILDKIT_CONFIG_FILE)"; \
+	else \
+		docker buildx create --use --name=container-builder; \
+	fi
+
 
 	# enable qemu for arm64 build
 	# docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 	for arch in $(ALL_ARCH.linux); do \
-		ARCH=$${arch} $(MAKE) luscsi; \
-		ARCH=$${arch} $(MAKE) container-linux; \
+		ARCH=$${arch} $(MAKE) build; \
+		ARCH=$${arch} $(MAKE) image; \
 	done
+
+	$(MAKE) push
+
 
 .PHONY: push
 push:
-ifdef CI
-	docker manifest create --amend $(IMAGE_TAG) $(foreach osarch, $(ALL_OS_ARCH), $(IMAGE_TAG)-${osarch})
-	docker manifest push --purge $(IMAGE_TAG)
-	docker manifest inspect $(IMAGE_TAG)
-else
-	docker push $(IMAGE_TAG)
-endif
-
-.PHONY: build-push
-build-push: $(build_luscsi_source_code)
-	docker tag $(IMAGE_TAG) $(IMAGE_TAG_LATEST)
-	docker push $(IMAGE_TAG_LATEST)
+	docker manifest create --insecure --amend $(IMAGE_TAG) $(foreach osarch, $(ALL_OS_ARCH), $(IMAGE_TAG)-${osarch})
+	docker manifest push --insecure --purge $(IMAGE_TAG)
+	docker manifest inspect --insecure $(IMAGE_TAG)
