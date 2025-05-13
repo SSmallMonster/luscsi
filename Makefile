@@ -49,7 +49,7 @@ release:
     		ARCH=$${arch} $(MAKE) build; \
     done
 
-	docker buildx build \
+	docker buildx build --progress plain \
 		--push \
 		--platform linux/arm64,linux/amd64 \
 		-t $(IMAGE_TAG) \
@@ -61,7 +61,7 @@ image:
 		-t $(IMAGE_TAG)-linux-$(ARCH) --build-arg ARCH=$(ARCH) -f $(dockerfile).$(ARCH) .
 
 .PHONY: release-manual
-release:
+release-manual:
 	docker buildx rm container-builder || true
 
 	# create buildx builder

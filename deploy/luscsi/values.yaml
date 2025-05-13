@@ -46,7 +46,7 @@ luscsiNode:
       repository: luskits/luscsi
       pullPolicy: Always
       # Overrides the image tag whose default is the chart appVersion.
-      tag: 99.9-dev-linux-amd64
+      tag: 99.9-dev
     resources: {}
   nodeSelector: {}
   tolerations: []
