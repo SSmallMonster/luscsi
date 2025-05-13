@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"github.com/luskits/luscsi/pkg/luscsi"
-	"k8s.io/klog/v2"
+	klog "k8s.io/klog/v2"
 	"os"
 )
 

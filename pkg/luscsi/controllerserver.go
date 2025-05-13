@@ -6,8 +6,8 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"k8s.io/klog/v2"
-	"k8s.io/mount-utils"
+	klog "k8s.io/klog/v2"
+	mount "k8s.io/mount-utils"
 	"os"
 	"path"
 	"path/filepath"
@@ -288,11 +288,11 @@ func (d *ControllerServer) DeleteVolume(_ context.Context, req *csi.DeleteVolume
 	}
 
 	// internal mount lustre to local
-	if err := d.internalMount(nil, lusVol); err != nil {
+	if err := d.internalMount(context.TODO(), lusVol); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to mount lustre server: %v", err)
 	}
 	defer func() {
-		if err := d.internalUnmount(nil, lusVol.volID); err != nil {
+		if err := d.internalUnmount(context.TODO(), lusVol.volID); err != nil {
 			klog.Warningf("failed to unmount lustre server: %v", err)
 		}
 	}()
@@ -331,6 +331,6 @@ func (d *ControllerServer) ControllerGetCapabilities(
 	_ *csi.ControllerGetCapabilitiesRequest,
 ) (*csi.ControllerGetCapabilitiesResponse, error) {
 	return &csi.ControllerGetCapabilitiesResponse{
-		Capabilities: d.Driver.cscap,
+		Capabilities: d.cscap,
 	}, nil
 }
