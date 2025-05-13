@@ -58,7 +58,7 @@ EOF
     dnf install epel-release -y  > /dev/null 2>&1
     check_error "failed to install epel-release"
 
-    info "installing requird packages dkms..."
+    info "installing required packages dkms..."
     yum install dkms -y > /dev/null 2>&1
     check_error "failed to install dkms"
 
@@ -78,7 +78,7 @@ EOF
     yum --disablerepo=* --enablerepo=zfs_linux install 	zfs-dkms-2.1.15-3.el9 libnvpair3 libuutil3 libzfs5 libzpool5 zfs-2.1.15 -y  > /dev/null 2>&1
     check_error "failed to install zfs-dkms-2.1.15-3.el9"
 
-    info "installing requird packages libyaml-devel..."
+    info "installing required packages libyaml-devel..."
     yum --enablerepo=devel install libyaml-devel libmount-devel  -y  > /dev/null 2>&1
     check_error "failed to install libyaml-devel libmount-devel"
     

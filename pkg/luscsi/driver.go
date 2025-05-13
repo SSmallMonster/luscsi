@@ -2,7 +2,7 @@ package luscsi
 
 import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"k8s.io/klog/v2"
+	klog "k8s.io/klog/v2"
 	mount "k8s.io/mount-utils"
 	"runtime"
 )
