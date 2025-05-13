@@ -19,7 +19,7 @@ LUSCSI 是一个基于 [Container Storage Interface (CSI)](https://github.com/co
 ## 使用方法
 
 ### 1. 部署驱动程序
-确保 Kubernetes 集群已安装 CSI 插件，并按照以下步骤部署 LUSCSI：
+确保 Kubernetes 集群已安装 Helm 插件，并按照以下步骤部署 LUSCSI：
 
 ```bash
 # 克隆仓库
@@ -27,12 +27,11 @@ git clone https://github.com/your-repo/luscsi.git
 
 # 构建镜像
 cd luscsi
-make image
+make build image
 
-# 部署到集群
-kubectl apply -f deploy/
+# Helm 部署到集群
+helm install luscsi -n luscsi --create-namespace deploy/luscsi/
 ```
-
 
 ### 2. 创建 StorageClass
 定义一个 StorageClass，指定所需的参数：
@@ -48,7 +47,6 @@ parameters:
   fsName: "lustrefs"
   subdir: "/path/to/subdir"
 ```
-
 
 ### 3. 动态创建 PVC
 创建 PersistentVolumeClaim (PVC)，动态分配 Lustre 卷：
@@ -67,7 +65,6 @@ spec:
       storage: 10Gi
   volumeMode: Filesystem
 ```
-
 
 ### 4. 挂载到 Pod
 在 Pod 中挂载动态创建的卷：
@@ -90,12 +87,11 @@ spec:
       claimName: lustre-pvc
 ```
 
-
 ## 开发指南
 
 ### 依赖安装
 确保安装以下依赖：
-- Go 1.18+
+- Go 1.23+
 - Docker
 - kubectl
 
@@ -104,18 +100,10 @@ spec:
 go mod tidy
 ```
 
-
-### 运行测试
-执行单元测试：
-```bash
-make test
-```
-
-
 ### 调试
 启用调试日志：
 ```bash
-kubectl logs <driver-pod> -c csi-luscsi-plugin
+kubectl logs <driver-pod> -c luscsi
 ```
 
 
@@ -124,7 +112,7 @@ kubectl logs <driver-pod> -c csi-luscsi-plugin
 ### Q: 如何检查驱动程序是否正常运行？
 A: 使用以下命令检查 CSI 驱动程序的状态：
     ```bash
-    kubectl get pods -n kube-system | grep csi-luscsi
+    kubectl get pods -n kube-system | grep luscsi-node
     ```
 
 
