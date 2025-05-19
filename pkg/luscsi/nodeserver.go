@@ -57,10 +57,15 @@ func (d *NodeServer) getLusVolumeFromRequest(req *csi.NodePublishVolumeRequest) 
 	}
 	lusVol.fsName = fsName
 
-	subDir, ok := req.GetVolumeContext()[StorageParamSubdir]
+	sharePath, ok := req.GetVolumeContext()[StorageParamSharePath]
 	if !ok {
-		return nil, status.Error(codes.InvalidArgument, "subDir is not provided")
+		return nil, status.Error(codes.InvalidArgument, "sharePath is not provided")
 	}
+	lusVol.sharePath = sharePath
+
+	// NOTE: subDir is optional, if not provided, it will use the sharePath to mount in the container.
+	// This is useful when data already existed in Lustre and will be shared between pods.
+	subDir, _ := req.GetVolumeContext()[StorageParamSubdir]
 	lusVol.subDir = subDir
 
 	return lusVol, nil
@@ -80,7 +85,7 @@ func (d *NodeServer) NodePublishVolume(_ context.Context, req *csi.NodePublishVo
 
 	// todo(ming): make this configurable from the storageclass parameters
 	mountPermissions := d.MountPermissions
-	source := filepath.Join(lusVol.mgsAddress+string(filepath.ListSeparator), lusVol.fsName, lusVol.subDir, lusVol.volID)
+	source := filepath.Join(lusVol.mgsAddress+string(filepath.ListSeparator), lusVol.fsName, lusVol.sharePath, lusVol.subDir)
 	notMnt, err := d.mounter.IsLikelyNotMountPoint(lusVol.targetPath)
 	if err != nil {
 		if os.IsNotExist(err) {
