@@ -21,6 +21,7 @@ type lustreVolume struct {
 	volID      string
 	mgsAddress string
 	fsName     string
+	sharePath  string
 	subDir     string
 	size       int64
 }
@@ -80,6 +81,7 @@ func (d *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolu
 	parameters := req.GetParameters()
 	setKeyValueInMap(parameters, StorageParamMgsAddress, lusVol.mgsAddress)
 	setKeyValueInMap(parameters, StorageParamFsName, lusVol.fsName)
+	setKeyValueInMap(parameters, StorageParamSharePath, lusVol.sharePath)
 	setKeyValueInMap(parameters, StorageParamSubdir, lusVol.subDir)
 	setKeyValueInMap(parameters, StorageVolumeID, lusVol.volID)
 
@@ -95,7 +97,7 @@ func (d *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolu
 }
 
 func generateCSIVolumeID(volume *lustreVolume) string {
-	idElements := []string{volume.mgsAddress, volume.fsName, volume.subDir, volume.volID}
+	idElements := []string{volume.mgsAddress, volume.fsName, volume.sharePath, volume.volID}
 	return strings.Join(idElements, "#")
 }
 
@@ -108,9 +110,18 @@ func getLusVolumeFromRequest(req *csi.CreateVolumeRequest) (*lustreVolume, error
 		volID:      req.GetName(),
 		mgsAddress: req.GetParameters()[StorageParamMgsAddress],
 		fsName:     req.GetParameters()[StorageParamFsName],
-		subDir:     req.GetParameters()[StorageParamSubdir],
+		sharePath:  getSharePath(req.GetParameters()),
+		subDir:     req.GetName(),
 		size:       req.GetCapacityRange().GetRequiredBytes(),
 	}, nil
+}
+
+// use /csi~volume as the default share path if not provided
+func getSharePath(p map[string]string) string {
+	if p[StorageParamSharePath] == "" {
+		return DefaultSharePath
+	}
+	return p[StorageParamSharePath]
 }
 
 func checkParameters(parameters map[string]string) error {
@@ -174,7 +185,7 @@ func (d *ControllerServer) internalMount(ctx context.Context, lusVol *lustreVolu
 			"mgsAddress and fsName must be provided")
 	}
 
-	sharePath := filepath.Join(lusVol.mgsAddress+string(filepath.ListSeparator), lusVol.fsName, lusVol.subDir)
+	sharePath := filepath.Join(lusVol.mgsAddress+string(filepath.ListSeparator), lusVol.fsName, lusVol.sharePath)
 	targetPath := getInternalMountPath(d.WorkingMountDir, lusVol.volID)
 	notMnt, err := d.mounter.IsLikelyNotMountPoint(targetPath)
 	if err != nil {
@@ -283,7 +294,7 @@ func (d *ControllerServer) DeleteVolume(_ context.Context, req *csi.DeleteVolume
 	lusVol := &lustreVolume{
 		mgsAddress: volumeSlice[0],
 		fsName:     volumeSlice[1],
-		subDir:     volumeSlice[2],
+		sharePath:  volumeSlice[2],
 		volID:      volumeSlice[3],
 	}
 
@@ -292,7 +303,7 @@ func (d *ControllerServer) DeleteVolume(_ context.Context, req *csi.DeleteVolume
 		return nil, status.Errorf(codes.Internal, "failed to mount lustre server: %v", err)
 	}
 	defer func() {
-		if err := d.internalUnmount(context.TODO(), lusVol.volID); err != nil {
+		if err := d.internalUnmount(context.TODO(), lusVol.subDir); err != nil {
 			klog.Warningf("failed to unmount lustre server: %v", err)
 		}
 	}()

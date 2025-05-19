@@ -32,11 +32,13 @@ var (
 var (
 	DefaultDriverName  = "luscsi.luskits.io"
 	DefaultTopologyKey = "topology.luscsi.luskits.io/node"
+	DefaultSharePath   = "csi~volume"
 )
 
 const (
 	StorageParamMgsAddress = "mgsAddress"
 	StorageParamFsName     = "fsName"
+	StorageParamSharePath  = "sharePath"
 	StorageParamSubdir     = "subDir"
 	StorageVolumeID        = "volumeID"
 )
