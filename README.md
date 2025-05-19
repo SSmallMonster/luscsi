@@ -45,7 +45,7 @@ provisioner: luscsi.luskits.io
 parameters:
   mgsAddress: "example.mgs.address@o2ib"
   fsName: "lustrefs"
-  subdir: "/path/to/subdir"
+  sharePath: "/path/to/share" # 默认为 /csi~volume
 ```
 
 ### 3. 动态创建 PVC
