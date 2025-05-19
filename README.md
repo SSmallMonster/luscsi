@@ -14,7 +14,7 @@ LUSCSI 是一个基于 [Container Storage Interface (CSI)](https://github.com/co
 以下参数用于配置 Lustre 卷：
 - `mgsAddress`：MGS（Management Service）地址。
 - `fsName`：Lustre 文件系统名称。
-- `subdir`：目标子目录路径。
+- `sharePath`：共享存储路径。
 
 ## 使用方法
 
