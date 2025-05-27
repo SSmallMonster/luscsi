@@ -184,14 +184,14 @@ func (d *NodeServer) NodeUnpublishVolume(_ context.Context, req *csi.NodeUnpubli
 }
 
 func (d *NodeServer) NodeStageVolume(_ context.Context, _ *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "")
+	return nil, status.Error(codes.Unimplemented, "NodeStageVolume is not implemented")
 }
 
 // Staging and Unstaging is not able to be supported with how Lustre is mounted
 //
 // See NodeStageVolume for more details
 func (d *NodeServer) NodeUnstageVolume(_ context.Context, _ *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "")
+	return nil, status.Error(codes.Unimplemented, "NodeUnstageVolume is not implemented")
 }
 
 func (d *NodeServer) NodeGetCapabilities(
@@ -220,5 +220,5 @@ func (d *NodeServer) NodeGetVolumeStats(
 	_ context.Context,
 	req *csi.NodeGetVolumeStatsRequest,
 ) (*csi.NodeGetVolumeStatsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "")
+	return nil, status.Error(codes.Unimplemented, "NodeGetVolumeStats is not implemented")
 }
