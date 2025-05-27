@@ -28,4 +28,4 @@ spec:
   resources:
     requests:
       storage: 10Gi
-  storageClassName: luscsi.luskits.io
+  storageClassName: 166.luscsi.luskits.io
