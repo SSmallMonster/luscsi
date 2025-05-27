@@ -296,6 +296,7 @@ func (d *ControllerServer) DeleteVolume(_ context.Context, req *csi.DeleteVolume
 		fsName:     volumeSlice[1],
 		sharePath:  volumeSlice[2],
 		volID:      volumeSlice[3],
+		subDir:     volumeSlice[3],
 	}
 
 	// internal mount lustre to local
