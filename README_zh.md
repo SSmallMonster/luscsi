@@ -43,7 +43,7 @@ helm install luscsi -n luscsi --create-namespace deploy/luscsi/
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-name: lustre-sc
+  name: lustre-sc
 provisioner: luscsi.luskits.io
 parameters:
   mgsAddress: "example.mgs.address@o2ib"
@@ -58,7 +58,7 @@ parameters:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-name: lustre-pvc
+  name: lustre-pvc
 spec:
   accessModes:
   - ReadWriteMany
@@ -76,7 +76,7 @@ spec:
 apiVersion: v1
 kind: Pod
 metadata:
-name: example-pod
+  name: example-pod
 spec:
   containers:
     - name: example-container
@@ -84,9 +84,9 @@ spec:
       volumeMounts:
       - mountPath: "/mnt/lustre"
         name: lustre-volume
-    volumes:
-    - name: lustre-volume
-      persistentVolumeClaim:
+  volumes:
+  - name: lustre-volume
+    persistentVolumeClaim:
       claimName: lustre-pvc
 ```
 
