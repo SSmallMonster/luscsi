@@ -45,9 +45,8 @@ spec:
     volumeAttributes:
       mgsAddress: "10.20.2.166@tcp"
       fsName: "lstore"
-      subDir: "dataset" # let this be empty, only mount the sharePath to container
-      sharePath: "csi~volume" # this is the sharePath exist in lustre
-      volumeID: "dataset"
-    volumeHandle: 10.20.2.166@tcp#lstore#csi~volume#dataset
+      sharePath: "csi~volume/dataset" # this is the sharePath exist in lustre
+    # volumeHandle format: {mgs-address}#{filesystem-name}#{share-path}#
+    volumeHandle: 10.20.2.166@tcp#lstore#csi~volume/dataset#
   persistentVolumeReclaimPolicy: Delete
   volumeMode: Filesystem

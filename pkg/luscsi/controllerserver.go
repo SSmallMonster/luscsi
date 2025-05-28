@@ -88,6 +88,7 @@ func (d *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolu
 	// todo: setup quota
 	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
+			// volumeID format: {mgs-address}#{filesystem-name}#{share-path}#{sub-dir}
 			VolumeId:      generateCSIVolumeID(lusVol),
 			CapacityBytes: lusVol.size,
 			VolumeContext: parameters,

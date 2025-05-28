@@ -39,10 +39,8 @@ func (d *NodeServer) getLusVolumeFromRequest(req *csi.NodePublishVolumeRequest) 
 	}
 	lusVol.targetPath = targetPath
 
-	volumeID, ok := req.GetVolumeContext()[StorageVolumeID]
-	if !ok {
-		return nil, status.Error(codes.InvalidArgument, "volumeID is not provided")
-	}
+	// NOTE: volumeID is optional, for static volume, this filed will not be set.
+	volumeID, _ := req.GetVolumeContext()[StorageVolumeID]
 	lusVol.volID = volumeID
 
 	mgsAddress, ok := req.GetVolumeContext()[StorageParamMgsAddress]
