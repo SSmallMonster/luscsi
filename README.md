@@ -6,15 +6,18 @@ LUSCSI 是一个基于 [Container Storage Interface (CSI)](https://github.com/co
 ## 功能特性
 - **动态存储卷创建**：支持通过 CSI 接口动态创建 Lustre 存储卷。
 - **参数化配置**：允许用户通过参数指定 MGS 地址、文件系统名称和子目录路径。
+- **静态数据卷**：支持将 Lustre 指定目录挂载到 Pod 中，实现静态存储卷的创建与管理。
 - **自定义数据卷名称**：允许用户根据 PVC 的命名空间和名称来定义 PV 名称。
 - **数据卷 Quota**：支持设置数据卷的容量限制（Lustre 2.16.0 及以上版本支持）。
+- **数据卷用量统计**：支持统计数据卷的使用情况。
 
 ## 核心概念
 ### 参数说明
 以下参数用于配置 Lustre 卷：
 - `mgsAddress`：MGS（Management Service）地址。
 - `fsName`：Lustre 文件系统名称。
-- `sharePath`：共享存储路径。
+- `sharePath`：共享存储路径，用于在此目录下新建数据卷，默认为 /csi~volume (可选)。
+> 注意：该路径（比如 /csi~volume）必须提前在 Lustre 文件系统中创建。
 
 ## 使用方法
 
@@ -27,7 +30,7 @@ git clone https://github.com/your-repo/luscsi.git
 
 # 构建镜像
 cd luscsi
-make build image
+REGISTRY=10.6.118.112:5000/luskits make release
 
 # Helm 部署到集群
 helm install luscsi -n luscsi --create-namespace deploy/luscsi/
@@ -45,7 +48,7 @@ provisioner: luscsi.luskits.io
 parameters:
   mgsAddress: "example.mgs.address@o2ib"
   fsName: "lustrefs"
-  sharePath: "/path/to/share" # 默认为 /csi~volume
+  sharePath: "/path/to/share" # 可选，默认为 /csi~volume
 ```
 
 ### 3. 动态创建 PVC
