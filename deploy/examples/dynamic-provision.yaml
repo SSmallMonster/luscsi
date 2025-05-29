@@ -13,6 +13,7 @@ spec:
       volumeMounts:
         - name: busybox-volume
           mountPath: /data
+          readOnly: false
   volumes:
     - name: busybox-volume
       persistentVolumeClaim:
