@@ -69,6 +69,10 @@ spec:
               name: host-sbin
             - mountPath: /bin
               name: host-bin
+            - mountPath: /lib
+              name: host-lib
+            - mountPath: /lib64
+              name: host-lib64
       volumes:
         - name: plugin-dir
           hostPath:
@@ -90,3 +94,11 @@ spec:
             path: /bin
             type: Directory
           name: host-bin
+        - hostPath:
+            path: /lib
+            type: Directory
+          name: host-lib
+        - hostPath:
+            path: /lib64
+            type: Directory
+          name: host-lib64

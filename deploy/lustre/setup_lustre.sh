@@ -27,7 +27,7 @@ function setup_lustre() {
         mgs)
 	          fsName=$(zfs get -H -o value lustre:fsname "$MGS_POOL"/"$MGT_TARGET" 2> /dev/null)
 	          { [ "$fsName" == "" ] && mkfs.lustre --mgs --mdt --fsname="$FSNAME" --backfstype=zfs --mgsnode="$MGS_NODE" --servicenode="$MGS_NODE" --index="$MGS_INDEX" "$MGS_POOL"/"$MGT_TARGET"; } || \
-	          { echo "$MGS_POOL/$MGT_TARGET is already formated as lustre filesystem"; }
+	          { echo "$MGS_POOL/$MGT_TARGET is already formatted as lustre filesystem"; }
 
 	          mkdir -p "$MGS_MOUNT"
 	          [ ! "$(mountpoint "$MGS_MOUNT" >/dev/null && findmnt -no FSTYPE "$MGS_MOUNT")" == "lustre" ] && \
@@ -39,7 +39,7 @@ function setup_lustre() {
 		          IFS=':' read -r pool target lindex disks otype mountdir <<< "$ost_conf"
 		          fsName=$(zfs get -H -o value lustre:fsname "$pool"/"$target" 2> /dev/null)
 		          { [ "$fsName" == "" ] && mkfs.lustre --ost --fsname="$FSNAME" --backfstype=zfs --servicenode="$MGS_NODE" --mgsnode="$MGS_NODE" --index="$lindex" "$pool"/"$target"; }  || \
-		          { echo "$pool/$target is already formated as lustre filesystem"; }
+		          { echo "$pool/$target is already formatted as lustre filesystem"; }
 
               mkdir -p "$mountdir"
 		          [ ! "$(mountpoint "$mountdir" >/dev/null && findmnt -no FSTYPE "$mountdir")" == "lustre" ] && \
