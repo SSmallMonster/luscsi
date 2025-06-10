@@ -6,11 +6,14 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"hash/fnv"
 	klog "k8s.io/klog/v2"
 	mount "k8s.io/mount-utils"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -51,8 +54,6 @@ func (d *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolu
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	// volume capacity is only supported when lustre is 2.16.0 or higher
-	// todo: check lctl version
 	lusVol, _ := getLusVolumeFromRequest(req)
 
 	if err := d.internalMount(ctx, lusVol); err != nil {
@@ -78,6 +79,16 @@ func (d *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolu
 		}
 	}
 
+	// set quota for volume sub-dir
+	lusVer := GetLustreServerVersion()
+	if isVersionGreaterOrEqual(lusVer, "2.16.1") {
+		if err := setQuota(internalPath, lusVol.volID, lusVol.size); err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to set quota for volume %s: %v", lusVol.volID, err)
+		}
+	} else {
+		klog.Warningf("lustre version %s does not support quota, skipping quota setup", lusVer)
+	}
+
 	parameters := req.GetParameters()
 	setKeyValueInMap(parameters, StorageParamMgsAddress, lusVol.mgsAddress)
 	setKeyValueInMap(parameters, StorageParamFsName, lusVol.fsName)
@@ -85,7 +96,6 @@ func (d *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolu
 	setKeyValueInMap(parameters, StorageParamSubdir, lusVol.subDir)
 	setKeyValueInMap(parameters, StorageVolumeID, lusVol.volID)
 
-	// todo: setup quota
 	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
 			// volumeID format: {mgs-address}#{filesystem-name}#{share-path}#{sub-dir}
@@ -95,6 +105,55 @@ func (d *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolu
 			ContentSource: req.GetVolumeContentSource(),
 		},
 	}, nil
+}
+
+func setQuota(volPath string, volName string, capacity int64) error {
+	projID := generateProjectID(volName)
+
+	cmd := exec.Command("lfs", "project", "-r", "-s", "-p", projID, volPath)
+	_, err := cmd.CombinedOutput()
+	if err != nil {
+		err = &exec.ExitError{ProcessState: cmd.ProcessState}
+		return fmt.Errorf("failed to set project %s for volume %s: %v", projID, volName, err)
+	}
+
+	KBytes := (capacity + 1023) / 1024
+	cmd = exec.Command("lfs", "setquota", "-p", projID, "-B", strconv.FormatInt(KBytes, 10), volPath)
+	_, err = cmd.CombinedOutput()
+	if err != nil {
+		err = &exec.ExitError{ProcessState: cmd.ProcessState}
+		return fmt.Errorf("failed to set quota for volume %s, project %s: %v", volName, projID, err)
+	}
+
+	klog.V(2).Infof("set quota for volume %s, project %s, capacity %d", volName, projID, KBytes)
+
+	return nil
+}
+
+// generateProjectID generates an integer project ID based on the PV name
+func generateProjectID(pvName string) string {
+	hasher := fnv.New32a() // Create a new 32-bit FNV-1a hasher
+	_, _ = hasher.Write([]byte(pvName))
+	// Return the hash as an integer
+	return strconv.FormatUint(uint64(hasher.Sum32()), 10)
+}
+
+func isVersionGreaterOrEqual(version1, version2 string) bool {
+	v1 := strings.Split(version1, ".")
+	v2 := strings.Split(version2, ".")
+
+	for i := 0; i < len(v1) && i < len(v2); i++ {
+		num1, _ := strconv.Atoi(v1[i])
+		num2, _ := strconv.Atoi(v2[i])
+
+		if num1 > num2 {
+			return true
+		} else if num1 < num2 {
+			return false
+		}
+	}
+
+	return len(v1) >= len(v2)
 }
 
 func generateCSIVolumeID(volume *lustreVolume) string {
@@ -226,19 +285,6 @@ func getInternalMountPath(baseDir, volName string) string {
 		return path.Join("/mnt", volName)
 	}
 	return path.Join(baseDir, volName)
-}
-
-func isVersionGreaterOrEqual(version1, version2 string) bool {
-	v1 := strings.Split(version1, ".")
-	v2 := strings.Split(version2, ".")
-
-	for i := 0; i < len(v1) && i < len(v2); i++ {
-		if v1[i] != v2[i] {
-			return v1[i] > v2[i]
-		}
-	}
-
-	return len(v1) >= len(v2)
 }
 
 func checkVolumeRequest(req *csi.CreateVolumeRequest) error {
