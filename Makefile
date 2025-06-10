@@ -94,3 +94,17 @@ push:
 	docker manifest create --insecure --amend $(IMAGE_TAG) $(foreach osarch, $(ALL_OS_ARCH), $(IMAGE_TAG)-${osarch})
 	docker manifest push --insecure --purge $(IMAGE_TAG)
 	docker manifest inspect --insecure $(IMAGE_TAG)
+
+
+.PHONY: pr-image
+pr-image:
+	for arch in $(ALL_ARCH.linux); do \
+    		ARCH=$${arch} $(MAKE) build; \
+    done
+
+	docker buildx build --progress plain \
+		--load \
+		--platform linux/amd64 \
+		-t $(IMAGE_TAG) \
+		-f $(dockerfile) .
+	docker push $(IMAGE_TAG)
