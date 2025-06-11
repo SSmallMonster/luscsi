@@ -7,6 +7,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	klog "k8s.io/klog/v2"
+	"os/exec"
 	"strings"
 	"time"
 )
@@ -88,4 +89,19 @@ func NewNodeServiceCapability(cap csi.NodeServiceCapability_RPC_Type) *csi.NodeS
 			},
 		},
 	}
+}
+
+func GetLustreServerVersion() string {
+	cmd := exec.Command("sh", "-c", "lctl get_param *.*.import | grep target_version | head -1 | awk '{print $2}'")
+	klog.Infof("running command: %s", cmd.String())
+
+	output, err := cmd.Output()
+	if err != nil {
+		err = &exec.ExitError{ProcessState: cmd.ProcessState}
+		klog.ErrorS(err, "failed to get Lustre server version")
+		return ""
+	}
+
+	klog.Infof("lustre server version is: %s", string(output))
+	return string(output)
 }
