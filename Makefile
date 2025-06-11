@@ -45,6 +45,9 @@ endif
 
 .PHONY: release
 release:
+	docker buildx rm container-builder || true
+	docker buildx create --use --name=container-builder
+
 	for arch in $(ALL_ARCH.linux); do \
     		ARCH=$${arch} $(MAKE) build; \
     done
@@ -54,6 +57,11 @@ release:
 		--platform linux/arm64,linux/amd64 \
 		-t $(IMAGE_TAG) \
 		-f $(dockerfile) .
+
+.PHONY: render-chart-values
+render-chart-values:
+	@echo "Rendering chart values..."
+	bash build/render-chart-values.sh
 
 .PHONY: image
 image:
