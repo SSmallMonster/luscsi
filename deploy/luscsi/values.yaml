@@ -6,7 +6,7 @@ global:
   # k8sImageRegistry: m.daocloud.io/registry.k8s.io
   k8sImageRegistry: registry.k8s.io
   # luscsiImageRegistry is used to control which image registry the luscsi
-  luscsiImageRegistry: 10.6.118.112:5000
+  luscsiImageRegistry: ghcr.io
   # kubeletRootDir is used to inform Hwameistor Kubelet plugin directory
   kubeletRootDir: /var/lib/kubelet
 
@@ -46,7 +46,7 @@ luscsiNode:
       repository: luskits/luscsi
       pullPolicy: Always
       # Overrides the image tag whose default is the chart appVersion.
-      tag: 99.9-dev
+      tag: ""
     resources: {}
   nodeSelector: {}
   tolerations: []
