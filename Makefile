@@ -45,8 +45,7 @@ endif
 
 .PHONY: release
 release:
-	docker buildx rm container-builder || true
-	docker buildx create --use --name=container-builder
+	docker buildx inspect container-builder || docker buildx create --use --name=container-builder
 
 	for arch in $(ALL_ARCH.linux); do \
     		ARCH=$${arch} $(MAKE) build; \
