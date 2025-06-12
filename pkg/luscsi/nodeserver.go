@@ -7,6 +7,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	klog "k8s.io/klog/v2"
+	"k8s.io/kubernetes/pkg/volume"
 	mount "k8s.io/mount-utils"
 	"os"
 	"path/filepath"
@@ -214,9 +215,70 @@ func (d *NodeServer) NodeGetInfo(
 	}, nil
 }
 
-func (d *NodeServer) NodeGetVolumeStats(
-	_ context.Context,
-	req *csi.NodeGetVolumeStatsRequest,
-) (*csi.NodeGetVolumeStatsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "NodeGetVolumeStats is not implemented")
+func (d *NodeServer) NodeGetVolumeStats(_ context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
+	if len(req.VolumeId) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "NodeGetVolumeStats Volume ID was empty")
+	}
+	if len(req.VolumePath) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "NodeGetVolumeStats Volume path was empty")
+	}
+
+	if _, err := os.Lstat(req.VolumePath); err != nil {
+		if os.IsNotExist(err) {
+			return nil, status.Errorf(codes.NotFound, "path %s does not exist", req.VolumePath)
+		}
+		return nil, status.Errorf(codes.Internal, "failed to stat file %s: %v", req.VolumePath, err)
+	}
+
+	volumeMetrics, err := volume.NewMetricsStatFS(req.VolumePath).GetMetrics()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get metrics: %v", err)
+	}
+
+	available, ok := volumeMetrics.Available.AsInt64()
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "failed to transform volume available size(%v)", volumeMetrics.Available)
+	}
+	capacity, ok := volumeMetrics.Capacity.AsInt64()
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "failed to transform volume capacity size(%v)", volumeMetrics.Capacity)
+	}
+	used, ok := volumeMetrics.Used.AsInt64()
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "failed to transform volume used size(%v)", volumeMetrics.Used)
+	}
+
+	inodesFree, ok := volumeMetrics.InodesFree.AsInt64()
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "failed to transform disk inodes free(%v)", volumeMetrics.InodesFree)
+	}
+	inodes, ok := volumeMetrics.Inodes.AsInt64()
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "failed to transform disk inodes(%v)", volumeMetrics.Inodes)
+	}
+	inodesUsed, ok := volumeMetrics.InodesUsed.AsInt64()
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "failed to transform disk inodes used(%v)", volumeMetrics.InodesUsed)
+	}
+
+	resp := csi.NodeGetVolumeStatsResponse{
+		Usage: []*csi.VolumeUsage{
+			{
+				Unit:      csi.VolumeUsage_BYTES,
+				Available: available,
+				Total:     capacity,
+				Used:      used,
+			},
+			{
+				Unit:      csi.VolumeUsage_INODES,
+				Available: inodesFree,
+				Total:     inodes,
+				Used:      inodesUsed,
+			},
+		},
+	}
+
+	klog.Infof("Volume: %s, VolumeMetrics: %s", req.VolumeId, resp.String())
+
+	return &resp, nil
 }
