@@ -1,0 +1,34 @@
+name: Luscsi PR
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+    branches:
+      - main
+    paths:
+      - ".github/**"
+      - "pkg/**"
+      - "cmd/**"
+      - "test/**"
+      - "build/**"
+      - "deploy/**"
+
+jobs:
+  pr-test:
+    runs-on: ["runner1"]
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: make pr-test image
+        run: |
+          source /etc/profile
+          IMAGE_VERSION=${GITHUB_RUN_ID} REGISTRY=${IMAGE_REGISTRY} make pr-image
+      - name: pr-test
+        run: |
+          bash ./test/pr-test.sh
