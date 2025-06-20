@@ -278,7 +278,7 @@ func (d *NodeServer) NodeGetVolumeStats(_ context.Context, req *csi.NodeGetVolum
 		},
 	}
 
-	klog.Infof("Volume: %s, VolumeMetrics: %s", req.VolumeId, resp.String())
+	klog.V(7).Infof("Volume: %s, VolumeMetrics: %s", req.VolumeId, resp.String())
 
 	return &resp, nil
 }
