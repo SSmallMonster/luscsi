@@ -11,6 +11,8 @@ spec:
       app: luscsi-node
   template:
     metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: luscsi
 {{ include "luscsi.labels" . | indent 6 }}
         app: luscsi-node
     spec:
